@@ -1,0 +1,29 @@
+--0			jmp
+#calc 65025 --/- 1.06 secs
+
+#start vars
+--0			var
+--0			cvar
+--0			count
+--0			ccount
+
+!start
+
+--1			var
+--var		cvar
+-255		cvar		!AddOne
+-cvar		cvar
+--0			jmp			!start
+
+!AddOne
+
+--1			count
+--count		ccount
+-255		ccount		!end
+-ccount		ccount
+-var		var
+--0			jmp			!start
+
+!end
+
+--0		status

@@ -1,0 +1,58 @@
+--33		!
+--62		>
+--39		'
+
+--p		out
+--r		out
+--i		out
+--n		out
+--t		out
+
+--Space	out
+
+--'		out
+--a		out
+--'		out
+
+--Space	out
+
+--t		out
+--o		out
+
+--Space	out
+
+--p		out
+--a		out
+--s		out
+--s		out
+--endl	out
+
+#set general conditional flag
+--0 cond
+!GetLetter
+
+#show prompt
+-->		out
+--1		flush
+
+#get input
+--1		in
+
+#move input to ch
+--stdin	ch
+
+#show input just after prompt
+--ch		out
+--endl		out
+
+#reset cond flag
+-cond	cond
+--ch		cond
+-ch		ch
+
+-97		cond	!end
+-0		jmp		!GetLetter
+
+!end
+
+--0		status

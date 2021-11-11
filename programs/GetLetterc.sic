@@ -1,0 +1,39 @@
+--0 !end
+
+
+--33	!
+--62	>
+--39	'
+--p		out
+--r		out
+--i		out
+--n		out
+--t		out
+--Space	out
+--'		out
+--a		out
+--'		out
+--Space	out
+--t		out
+--o		out
+--Space	out
+--p		out
+--a		out
+--s		out
+--s		out
+--endl	out
+--0 cond !GetLetter
+!GetLetter
+-->		out
+--1		flush
+--1		in
+--input ch
+--ch		out
+--endl		out
+-cond		cond
+--ch		cond
+-ch			ch
+-97			cond	!end
+-0			jmp		!GetLetter
+!end
+--0		status
