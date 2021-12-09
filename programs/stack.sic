@@ -1,0 +1,5 @@
+>a
+<b
+--b out
+--Endl out
+# expect 'a'

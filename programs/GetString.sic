@@ -1,0 +1,93 @@
+# NEEDS --OLJ
+--62 >
+--33 !
+--63 ?
+--0 np
+
+
+# get letter
+--w stdout
+--h stdout
+--a stdout
+--t stdout
+--Space stdout
+--i stdout
+--s stdout
+--Space stdout
+--y stdout
+--o stdout
+--u stdout
+--r stdout
+--Space stdout
+--n stdout
+--a stdout
+--m stdout
+--e stdout
+--? stdout
+--endl stdout
+--> stdout
+--0 flush
+
+-0 strlen
+
+!GetLetter
+
+--0	input
+--stdin stdinc
+--stdin stdout
+--0 flush
+>stdin
+-13 stdinc !end
+-stdinc stdinc
+--stdin stdinc
+-127 stdinc !rm
+--1 strlen
+-stdinc stdinc
+--0 jmp !GetLetter
+
+!rm
+--0 strlen !GetLetter
+-1 strlen
+# remove \b
+<_
+# remove char
+<_
+#--0 debug
+--27 stdout
+--91 stdout
+--49 stdout
+--68 stdout
+--strlen np
+--27 stdout
+--91 stdout
+--75 stdout
+--0 flush
+--0 jmp !GetLetter
+
+!end
+
+--endl stdout
+--0 strlen !EOF
+--0 invert
+
+--h stdout
+--e stdout
+--l stdout
+--l stdout
+--o stdout
+--Space stdout
+
+
+!GetNext
+-1 strlen
+<let
+--let stdout
+--0 strlen !Printed
+--0 jmp !GetNext
+
+!Printed
+
+--! stdout
+--endl stdout
+
+!EOF
