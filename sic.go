@@ -1,17 +1,13 @@
 package main
-import (
-	. "util"
-	"strings"
-	"os"
-	"fmt"
-	"strconv"
-)
+
+include "/home/owsei/Documents/go/gutil.go"
 
 const (
 	OP_FUNC = iota
-	//OP_INCLUDE = iota
 	OP_MINUS = iota
 	OP_DMINUS = iota
+	OP_PUSH = iota
+	OP_POP = iota
 )
 
 
@@ -46,15 +42,17 @@ func PrintCommand( cmd command ) {
 	var optp string = "no op"
 	switch cmd.optype {
 		case OP_MINUS:
-			optp = "'-'"
+			optp = "-"
 		case OP_DMINUS:
-			optp = "'--'"
+			optp = "--"
 		case OP_FUNC:
 			optp = "func"
-		//case OP_INCLUDE:
-		//	optp = "include"
+		case OP_POP:
+			optp = "pop"
+		case OP_PUSH:
+			optp = "push"
 	}
-	Printf("%s in '%s' w/ '%s' -> %s @ %d\n", optp, cmd.addr, cmd.value, cmd.jt, cmd.line)
+	printf("%s in '%s' w/ '%s' -> %s @ %d\n", optp, cmd.addr, cmd.value, cmd.jt, cmd.line)
 }
 
 func ParseFile( flname string ) []command {
@@ -72,10 +70,15 @@ func ParseFile( flname string ) []command {
 	*/
 	for linei := 0 ; linei < len(file) ; linei++{
 		line = ""
-		if (len(file[linei]) > 4) {
-			if (!(string(file[linei][0]) == "-" || string(file[linei][0]) == "!" || string(file[linei][0]) == "#")) {
-				fmt.Printf("unknown char '%s'\n", string(file[linei][0]))
-				fmt.Printf("in line \"%s\" @ %d\n", file[linei], linei+1)
+		if (len(file[linei]) > 0) {
+			if (!(
+			string(file[linei][0]) == "<" ||
+			string(file[linei][0]) == ">" ||
+			string(file[linei][0]) == "-" ||
+			string(file[linei][0]) == "!" ||
+			string(file[linei][0]) == "#")) {
+				printf("unknown char '%s'\n", string(file[linei][0]))
+				printf("in line \"%s\" @ %d\n", file[linei], linei+1)
 				continue
 			} else {
 				for chari := 0 ; chari < len(file[linei]) ; chari++{
@@ -93,8 +96,10 @@ func ParseFile( flname string ) []command {
 							cmdtype = OP_MINUS
 						case "!":
 							cmdtype = OP_FUNC
-						//case "@":
-						//	cmdtype = OP_INCLUDE
+						case "<":
+							cmdtype = OP_POP
+						case ">":
+							cmdtype = OP_PUSH
 					}
 					cmd.optype = cmdtype
 					if string(line[1]) == "-"{ cmd.optype = OP_DMINUS }
@@ -113,6 +118,10 @@ func ParseFile( flname string ) []command {
 						cmd.addr = lns[1]
 						cmd.value = lns[0][2:len(lns[0])]
 						//
+					} else if (cmd.optype == OP_POP) {
+						cmd.addr = lns[0][1:len(lns[0])]
+					} else if (cmd.optype == OP_PUSH) {
+						cmd.value = lns[0][1:len(lns[0])]
 					}
 					if (len(lns) == 3) {
 						cmd.jt = lns[2]
@@ -131,10 +140,10 @@ var VARS = map[string]int {
 	"endl":10,	// \n
 	"Space":32, // ' '
 }
-
 var JUMPS = map[string]int { }
+var STACK = []int{}
 
-func get( name string ) int {
+func GetVar( name string ) int {
 	var ret int
 	var err error
 	var nameerror bool
@@ -142,6 +151,7 @@ func get( name string ) int {
 	if (err != nil) {
 		ret, nameerror = VARS[name]
 		if (nameerror) {
+			fprintf(stderr, "%sno such var \"%s\"%s\n", RGB(0xff, 0x60, 0x60), name, RGB(0xff, 0xff, 0xff))
 			//TODO panic
 		}
 	}
@@ -160,15 +170,19 @@ func RunFile( dofile []command ) int { // ret exit num
 	var addr string
 	for linei := 0 ; linei < len(dofile) ; linei++{
 		line = dofile[linei]
-		value = get(line.value)
+		value = GetVar(line.value)
 		addr = line.addr
+		//PrintCommand(line)
+		//GetChByte()
 		switch addr{
 			case "out":
-				Sout.Write([]byte(string(value)))
-			case "in":
-				VARS["input"] = int(GetChByte())
+				stdout.Write([]byte(string(value)))
+			case "stdout":
+				stdout.Write([]byte(string(value)))
+			case "input":
+				VARS["stdin"] = int(GetChByte())
 			case "flush":
-				Sout.Flush()
+				stdout.Flush()
 			case "debug":
 				// TODO
 			case "clear":
@@ -179,6 +193,11 @@ func RunFile( dofile []command ) int { // ret exit num
 						VARS[addr] += value
 					case OP_MINUS:
 						VARS[addr] -= value
+					case OP_POP:
+						VARS[addr] = STACK[len(STACK)-1]
+						STACK = STACK[:len(STACK)-2]
+					case OP_PUSH:
+						STACK = append(STACK, value)
 				}
 		}
 		if (addr == "cond" || line.value == "input") {
@@ -186,13 +205,10 @@ func RunFile( dofile []command ) int { // ret exit num
 		}
 		if (VARS[addr] == 0 && line.jt != "" ) {
 			jump = JUMPS[line.jt]
-			fmt.Print(JUMPS)
-			PrintCommand(line)
-			PrintCommand(dofile[jump])
 			linei = jump
 		}
 	}
-	Sout.Flush()
+	stdout.Flush()
 	return VARS["status"]
 }
 /*

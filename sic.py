@@ -33,6 +33,14 @@ options in order
 --debug if set,the program will tell how much time was needed to tokenize and run the program
 """
 
+class Exec(IntEnum):
+	Plus = iota()
+	Minus = iota()
+	Comment = iota()
+	Label = iota()
+	Pop = iota()
+	Push = iota()
+
 # token class, all lines will become a token and the be run by program.run
 class token:
 	def __init__(this,type,value,addr,jump):
@@ -41,11 +49,11 @@ class token:
 		this.addr = addr
 		this.jump = jump
 	def __repr__(this): # only to write the token to the screen
-		if this.type == "COMMENT":
+		if this.type == Exec.Comment:
 			return this.value
 		elif this.type == "LABEL":
 			return f"label !{this.addr}"
-		return f"{this.addr} {'+' if this.type == 'PLUS' else '-'}= {this.value} {'goto '+this.jump if this.jump != None else ''}"
+		return f"{this.addr} {'+' if this.type == Exec.Plus else '-'}= {this.value} {'goto '+this.jump if this.jump != None else ''}"
 
 
 # main class
@@ -105,6 +113,7 @@ class program:
 			"endl":10,
 			"Space":32,
 		}
+		STACK = []
 		for i in range(0, 26):
 			VARS[chr(i+65)] = i+65
 			VARS[chr(i+97)] = i+97
@@ -118,12 +127,37 @@ class program:
 			line = this.file[LineNumber]
 
 			TYPE = line.type
-			if TYPE in ["COMMENT","LABEL"]: # make runOLJ / run
+			if TYPE in [Exec.Label, Exec.Comment]: # make runOLJ / run
 				LineNumber+=1
 				continue
+			elif TYPE == Exec.Pop:
+				#print("pop")
+				VARS[line.value] = STACK.pop(-1)
+				LineNumber+=1
+				continue
+				#print()
+			elif TYPE == Exec.Push:
+				#print("push")
+				#print(line.value)
+				if line.value in VARS.keys():
+					STACK.append(VARS[line.value])
+				else:
+					if all(map(lambda x : x in "+-0987654321", line.value)):
+						STACK.append(eval(line.value))
+					else:
+						eprint("can't push value \"%s\" to stack, no such var or NaN error" % line )
+						exit(6)
+
+				LineNumber+=1
+				continue
+				#print()
 
 			VALUE = line.value
-			ADDR = line.addr.replace("out","stdout").replace("in","input")# shortcuts for triggers
+			ADDR = line.addr
+			if ADDR == "out":
+				ADDR = "output"
+			elif ADDR == "in":
+				ADDR = "input"
 
 			JUMP = line.jump
 
@@ -135,15 +169,16 @@ class program:
 				try:
 					VALUE = VARS[VALUE]
 				except KeyError:
-					print(f"\n\
+					print('"'+str(line).strip()+'"')
+					print(f"\
 run time error\n\
 {COLOR.red}VALUE NAME ERROR{COLOR.nc}\n\
 No variable has been named \"{VALUE}\"")
 					return 1
 
-			if TYPE == "MINUS":
+			if TYPE == Exec.Minus:
 				VARS[ADDR] = VARS.get(ADDR,0)-VALUE
-			else:
+			elif TYPE == Exec.Plus:
 				VARS[ADDR] = VARS.get(ADDR,0)+VALUE
 
 			if VARS[ADDR] == 0 and JUMP != None:
@@ -156,23 +191,31 @@ No variable has been named \"{VALUE}\"")
 				else:
 					JUMP = VARS[JUMP] # jump to var
 				LineNumber = JUMP-2# -2 cus - the jmp one and minus this loop's ++
+			#print(ADDR)
 
 			match ADDR:
 				case "stdout":
-					printl(chr(int(VARS["stdout"])))
+					stdout.write(chr(int(VARS["stdout"])))
 					VARS["stdout"] = 0
 
 				case "clear":
 					clear()
 
+				case "invert":
+					STACK = STACK[::-1]
+
 				case "input":
 					ch = GetCh()
-					if dbg and ch == "\x03":break
+					if dbg and ch == "\x1b":break
 					VARS["stdin"] = ord(ch)
+
+				case "flush":
+					stdout.flush()
 
 				case "debug":
 					alp = 0
 					ret = {}
+					print(STACK)
 					for key in VARS.keys():
 						if not key in "ABCDEFGHIJKLMNOPQRSTUVWXYZ" or not this.SmallDebug:
 							if key in [ "in", "stdout", "clear", "debug" ]:continue
@@ -224,70 +267,74 @@ No variable has been named \"{VALUE}\"")
 		# end func
 		return VARS["status"]
 
-
-
-
-
 	def MakeUsableFile(this,file:list[str]) -> list[str]:
 		ret = []
 		this.labels = {}
 		OLJ = get("--OLJ").exists
 		for LineNumber in r(file):
-			line = file[LineNumber]
-			# line+=' '
-			if line and line[0] in "+-":
-				line = list( TrimSpaces(line.replace('\t',' ').strip()))
-				if line[0:2] == ['-', '-']:
-					line[1] = '+'
-					line = line[1:]
-					#print(line)
-				pline = ''.join(line)
+			line = file[LineNumber].strip()
+			if len(line):
+				# line+=' '
+				if line[0] in "<>":
+					if line[0] == '<':
+						ret.append(token(Exec.Pop,line[1:],None,None))
+					else:
+						ret.append(token(Exec.Push,line[1:],None,None))
+					continue
+				elif line and line[0] in "+-":
+					line = list( TrimSpaces(line.replace('\t',' ').strip()))
+					if line[0:2] == ['-', '-']:
+						line[1] = '+'
+						line = line[1:]
+						#print(line)
+					pline = ''.join(line)
 
-				# get type
-				if line.pop(0) == '+':
-					_type = "PLUS"
-				else:
-					_type = "MINUS"
+					# get type
+					if line.pop(0) == '+':
+						_type = Exec.Plus
+					else:
+						_type = Exec.Minus
 
-				# get value
-				ns = ''.join(line).find(' ') # next stop
-				_value = ''.join(line[0:ns])
-				line = line[ns+1:]
-
-				_jmp = 0
-				# get addr
-				ns = ''.join(line).find(' ') # next stop
-				if ns == -1: #no jump
-					_jmp = None
-					_addr = ''.join(line)
-				else:
-					_addr = ''.join(line[:ns])
+					# get value
+					ns = ''.join(line).find(' ') # next stop
+					_value = ''.join(line[0:ns])
 					line = line[ns+1:]
 
-				if _addr.isnumeric():
-					print(f"comp time error\n\
-{COLOR.red}VARIABLE NAMEING ERROR{COLOR.nc}\n\
-No variables can be named numbers! line:{LineNumber}, addres missnamed \"{_addr}\"")
-					return 2
+					_jmp = 0
+					# get addr
+					ns = ''.join(line).find(' ')
+					if ns == -1: #no jump
+						_jmp = None
+						_addr = ''.join(line)
+					else:
+						_addr = ''.join(line[:ns])
+						line = line[ns+1:]
 
-				#get jump
-				if _jmp == 0:
-					_jmp = ''.join(line)
+					if _addr.isnumeric():
+						print(f"comp time error\n\
+	{COLOR.red}VARIABLE NAMEING ERROR{COLOR.nc}\n\
+	No variables can be named numbers! line:{LineNumber}, addres missnamed \"{_addr}\"")
+						return 2
 
-				ret.append(token(_type,_value,_addr,_jmp))
-				# debug lines
-				dbline = f"\
-{COLOR.DarkBlue}{LineNumber}{COLOR.nc} \
-{pline} {COLOR.BrOrange} ->\
-{COLOR.nc} tp:{_type}, vl:{_value}, addr:{_addr} , jmp:{_jmp}"
-				# print(dbline)
+					#get jump
+					if _jmp == 0:
+						_jmp = ''.join(line)
 
-			elif line[0] == '!':
-				if not OLJ:
-					this.labels[line[1:].strip()] = LineNumber+2
-				ret.append(token("LABEL",None,line[1:].strip(),None))
-			else:
-				ret.append(token("COMMENT",'"'+line.strip()+'"',None,None))
+					ret.append(token(_type,_value,_addr,_jmp))
+					# debug lines
+					dbline = f"\
+	{COLOR.DarkBlue}{LineNumber}{COLOR.nc} \
+	{pline} {COLOR.BrOrange} ->\
+	{COLOR.nc} tp:{_type}, vl:{_value}, addr:{_addr} , jmp:{_jmp}"
+					# print(dbline)
+
+				elif line[0] == '!':
+					if not OLJ:
+						this.labels[line[1:].strip()] = LineNumber+2
+					ret.append(token(Exec.Label,None,line[1:].strip(),None))
+				else:
+					ret.append(token(Exec.Comment,'"'+line.strip()+'"',None,None))
+				#print(ret[-1])
 
 		# file has no line jumps -> remove comment lines
 		if OLJ:
@@ -296,19 +343,19 @@ No variables can be named numbers! line:{LineNumber}, addres missnamed \"{_addr}
 
 			newret = []
 			for tkn in ret:
-				if not tkn.type == "COMMENT":
+				if tkn.type != Exec.Comment:
 					newret.append(tkn)
 			ret=newret
 
 			labels = 0
 			for tkni in r(ret):
-				if ret[tkni].type == "LABEL":
+				if ret[tkni].type == Exec.Label:
 					this.labels[ret[tkni].addr] = tkni+(1-labels)
 					# +(1-labels) is the labels existence in the list beeing removed
 					labels+=1
 			newret = []
 			for tkn in ret:
-				if not tkn.type == "LABEL":
+				if not tkn.type == Exec.Label:
 					newret.append(tkn)
 			ret=newret
 		else:
